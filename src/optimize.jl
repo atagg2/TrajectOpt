@@ -42,7 +42,7 @@ end
 function optimize_trajectory(initial, final, us, tFinal, model)
     designVars = vcat(us[1,:], us[2,:], tFinal)
     trajectory_objective = trajectory_objective_constructor(initial, final, model)
-    ng = 3
+    ng = 4
     lu = zeros(length(designVars))
     uu = 5*ones(length(designVars))
     lu[Int((end-1)/2):end-1] .= -30
@@ -54,7 +54,7 @@ function optimize_trajectory(initial, final, us, tFinal, model)
         "tol" => 1e-1,
         "max_iter" => 1000
         )
-    solver = SNOPT()
+    solver = IPOPT(ip_options)
     options = Options(derivatives = ForwardAD(); solver)
     xopt, fopt, info = minimize(trajectory_objective, designVars, ng, lu, uu, lg, ug, options)
     return xopt, fopt, info
@@ -73,11 +73,13 @@ function trajectory_objective_constructor(initial, final, model)
         t = range(0, stop = tSpan[2], length = length(us[1,:]))
         uSpline = [FM.Akima(t,us[1,:]), FM.Akima(t,us[2,:])]
         x = simulate(initial, uSpline, model, tSpan)
-        # dx = dynamics!(x[:,end],x[:,end],(model, uSpline),t)
+        # dx = dynamics_2D!(x[:,end], x[:,end], (uSpline, model), t[end])
         #constrain final states to the desired final states
-        g[1] = x[6,end] - final[6]     
+        g[1] = x[6,end] - final[6]
+        # g[1] = tSpan[end] - 5     
         g[2] = x[2,end] - final[2]
         g[3] = x[1,end] - final[1]
+        # g[4] = x[2,end] - x[2,end-1]
 
         # mappedXIndices = Int.(round.(range(1, stop = length(x[1,:]), length = length(t))))
         # g[2:length(t)+1] = x[1,mappedXIndices] .- initial[1]

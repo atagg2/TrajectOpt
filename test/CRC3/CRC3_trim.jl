@@ -111,7 +111,7 @@ Cms = -1*[
 ]
 #create model
 polar_function = polar_constructor(Cds, Cls, Cms, alphas, Res)
-CRC3Parameters = BiWingTailSitter(m, I, X, s, S, b, rho, mu, g)
+CRC3Parameters = BiWingTailSitterLowFidel(m, I, X, s, S, b, rho, mu, g)
 CRC3Forces = biwing_tailsitter_forces_constructor(polar_function, CRC3Parameters)
 CRC3 = LowFidel(CRC3Parameters, CRC3Forces)
 

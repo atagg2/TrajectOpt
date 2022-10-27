@@ -1,11 +1,12 @@
 module TrajectOpt
 
-    using FLOWMath, SNOW, Plots, DifferentialEquations, StaticArrays, DelimitedFiles, Snopt
+    using FLOWMath, SNOW, Plots, DifferentialEquations, StaticArrays, DelimitedFiles, Snopt, VortexLattice
     DE = DifferentialEquations
     FM = FLOWMath
     SA = StaticArrays
     DF = DelimitedFiles
     SN = Snopt
+    VL = VortexLattice
 
     include("models.jl")
     include("dynamics.jl")
@@ -14,8 +15,9 @@ module TrajectOpt
     export Model
     export LowFidel 
     export HighFidel
-    export Conventional
-    export BiWingTailSitter
+    export ConventionalLowFidel
+    export ConventionalMidFidel
+    export BiWingTailSitterLowFidel
     export polar_constructor
     export conventional_forces_constructor
     export biwing_tailsitter_forces_constructor

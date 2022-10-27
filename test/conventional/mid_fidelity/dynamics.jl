@@ -1,16 +1,16 @@
 using TrajectOpt
 using Plots
 using FLOWMath
-using DelimitedFiles
 
 #physical system
 m = 1.36
 I = .0111
-X = -.0086
-s = .25
-S = .05
-b = .508
-c = S/b
+X = .0086
+L = .57     #tail moment arm
+SWing = .05
+bWing = .508
+STail = .017
+bTail = .15
 rho = 1.225
 mu = 1.81e-5
 g = 9.81
@@ -78,7 +78,7 @@ Cls = [
   1.12104    1.12104    1.12104    1.12104    1.12104
 ]
 
-Cms = -1*[
+Cms = [
  -0.294631  -0.294352  -0.294585  -0.294493  -0.293935
  -0.275525  -0.27507   -0.275299  -0.275231  -0.27462
  -0.255848  -0.255493  -0.255818  -0.255653  -0.25506
@@ -107,125 +107,17 @@ Cms = -1*[
   0.18337    0.180956   0.180812   0.180767   0.180732
   0.20143    0.198386   0.198213   0.198159   0.198117
 ]
-#create model
-polar_function = polar_constructor(Cds, Cls, Cms, alphas, Res)
-CRC3Parameters = BiWingTailSitterLowFidel(m, I, X, s, S, b, rho, mu, g)
-CRC3Forces = biwing_tailsitter_forces_constructor(polar_function, CRC3Parameters)
-CRC3 = LowFidel(CRC3Parameters, CRC3Forces)
+planeParameters = ConventionalLowFidel(m, I, X, L, SWing, bWing, STail, bTail, rho, mu, g)
+wing_polar_function = polar_constructor(Cds, Cls, Cms, alphas, Res)
+tail_polar_function = polar_constructor(Cds, Cls, Cms, alphas, Res)
+planeForces = conventional_forces_constructor(wing_polar_function, tail_polar_function, planeParameters)
+plane = LowFidel(planeParameters, planeForces)
 
-#===============Trajectory Optimization================#
+x0 = [15, 2, 0, 5, 0, 0]
+u = [5, -5]
+tSpan = [0 70]
+t = range(0, stop = tSpan[2], length = 100)
+uSpline = [Akima(t,u[1]*ones(length(t))), Akima(t,u[2]*ones(length(t)))]
 
-#initial state
-# initial = [26.53543674218781, 1.6531711335659358, -2.381541895023577e-28, -9.859472699953022e-9, 0.0, 0.0]   
-# u_initial = [0.4096889309095969, 0.201508784460286]
-initial = [20.360249514824275, -9.793973890305291e-9, 1.639302791149322e-20, 1.3504258298384568, 0.0, 0.0]   
-# u_initial = [0.23035833080744003, 0.18695614605033223]
-u_initial = [0.00016036799608707683, 0.0001503488915109187]
-# initial = [.000000001, 90, 0.0, 90, 0.0, 0.0]
-
-#trimmed final state
-final = deepcopy(initial)
-
-#desired final position
-posy_final = 1
-final[6] = posy_final
-
-# VinfFinal = 30
-# final[1] = VinfFinal
-
-# gammaFinal = 0.0
-# final[2] = gammaFinal
-
-# #manual try
-tFinal = 4
-
-#number of segments
-nSegs = 5
-#number of design variables per segment
-n = 10
-
-#initial guess at trajectory
-us = u_initial.*ones(2,n)
-
-# #clear output file
-# open("optimization_outputs.txt", "w") do io
-#   writedlm(io, [
-#     0.0	0.5555555555555556	1.1111111111111112	1.6666666666666667	2.2222222222222223	2.7777777777777777	3.3333333333333335	3.888888888888889	4.444444444444445	5.0
-#   ])
-# end
-
-uopt, fopt = optimize_trajectory(initial, final, us, tFinal, CRC3)
-u = zeros(2,n)
-u[1,:] = uopt[1:Int((end-1)/2)]
-u[2,:] = uopt[Int((end-1)/2)+1:end-1]
-t = range(0,stop = uopt[end],length = length(u[1,:]))
-tSpan = [0,t[end]]
-uSpline = [Akima(t,u[1,:]),Akima(t,u[2,:])]
-
-#optimized simulation
-path = simulate(initial, uSpline, CRC3, tSpan)
+path = simulate(x0, uSpline, plane, tSpan)
 plot_simulation(path, uSpline)
-path
-
-# A = readdlm("optimization_outputs.txt", '\t', Float64, '\n')
-# for i in 2:7:length(A[:,1])
-#   t_points = A[i,:]
-#   u_top_points = A[i+1,:]
-#   u_bottom_points = A[i+2,:]
-#   Vinf_points = A[i+3,:]
-#   gamma_points = A[i+4,:]
-#   theta_points = A[i+5,:]
-#   posy_points = A[i+6,:]
-
-#   Vinf_spline = Akima(t_points, Vinf_points)
-#   u_top_spline = Akima(t_points, u_top_points)
-#   u_bottom_spline = Akima(t_points, u_bottom_points)
-#   gamma_spline = Akima(t_points, gamma_points)
-#   theta_spline = Akima(t_points, theta_points)
-#   posy_spline = Akima(t_points, posy_points)
-
-#   t = range(t_points[1], stop = t_points[end], length = 200)
-#   Vinf = Vinf_spline.(t)
-#   u_top = u_top_spline.(t)
-#   u_bottom = u_bottom_spline.(t)
-#   gamma = gamma_spline.(t)
-#   theta = theta_spline.(t)
-#   posy = posy_spline.(t)
-
-#   p1 = plot(t, Vinf, xlabel = "Time (s)", ylabel = "State", label = "Velocity", legend = :topleft)
-#   plot!(t, gamma, label = "Flightpath Angle")
-#   plot!(t, theta, label = "Pitch Angle")
-#   plot!(t, posy, label = "Y Position")
-#   p2 = plot(t, u_top, xlabel = "Time (s)", ylabel = "Thrust (N)", label = "Top", legend = :topleft)
-#   plot!(t, u_bottom, label = "Bottom")
-#   p = plot(p1,p2,layout = 2)
-#   display(p)
-# end
-
-# G = readdlm("constraint_outputs.txt", '\t', Float64, '\n')
-# plot(G)
-
-# # plots
-# plot(path.t, Vinf, xlabel = "time (s)", ylabel = "State", label = "Velocity", legend = :topright)
-# plot!(path.t, gamma, xlabel = "time (s)", ylabel = "Velocity (m/s)", label = "Freestream Angle")
-# plot!(path.t, theta, xlabel = "time (s)", ylabel = "Theta (degrees)", label = "Pitch Angle")
-# plot!(path.t, aoa, xlabel = "time (s)", ylabel = "alpha (degrees)", label = "Angle of Attack")
-# plot!(path.t, posx, xlabel = "time (s)", ylabel = "position (m)", label = "X Position")
-# plot!(path.t, posy, xlabel = "time (s)", ylabel =  "position (m)", label = "Y Position")
-
-
-# iter = 500
-# output = [ path.t, Vinf, gamma, theta, aoa, 
-#   posx, posy, uopt, fopt, iter, "starting from trimmed trajectory", "all stability constraints"]
-# open("altitude_constraint_all_stability.txt", "a") do io
-#   writedlm(io, output)
-# end
-
-# A = readdlm("test_file.txt", '\t', Int, '\n')
-
-# for i in 1:length(A[:,1])
-#   p = plot(A[i,:])
-#   sleep(.1)
-#   display(p)
-# end
-

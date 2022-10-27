@@ -107,44 +107,23 @@ Cms = [
   0.18337    0.180956   0.180812   0.180767   0.180732
   0.20143    0.198386   0.198213   0.198159   0.198117
 ]
-planeParameters = Conventional(m, I, X, L, SWing, bWing, STail, bTail, rho, mu, g)
+planeParameters = ConventionalLowFidel(m, I, X, L, SWing, bWing, STail, bTail, rho, mu, g)
 wing_polar_function = polar_constructor(Cds, Cls, Cms, alphas, Res)
 tail_polar_function = polar_constructor(Cds, Cls, Cms, alphas, Res)
 planeForces = conventional_forces_constructor(wing_polar_function, tail_polar_function, planeParameters)
 plane = LowFidel(planeParameters, planeForces)
 
-initial = [
-  29.620798165000465,
--1.0218757699999816e-14,
- 0.0,
- 0.9954411765904372,
- 0.0,
- 0.0
-]  
-u_initial = [ 1.0068490831512529, -7.101753959532225]
+x0 = [15, 2, 0, 5, 0, 0]
+u0 = [5, -5]
 
-final = deepcopy(initial)
+final = deepcopy(x0)
+xopt, fopt = optimize_trim(x0, u0, plane, final)
+u = xopt[1:2]
+x = xopt[3:end]
 
-# posy_final = 10
-# final[6] = posy_final
+tSpan = [0 10]
+t = range(0, stop = tSpan[2], length = 100)
+uSpline = [Akima(t,u[1]*ones(length(t))), Akima(t,u[2]*ones(length(t)))]
 
-VinfFinal = 50
-final[1] = VinfFinal
-
-
-tFinal = 4
-
-us = u_initial.*ones(2,10)
-
-uopt, fopt = optimize_trajectory(initial, final, us, tFinal, plane)
-u = zeros(size(us))
-u[1,:] = uopt[1:Int((end-1)/2)]
-u[2,:] = uopt[Int((end-1)/2)+1:end-1]
-t = range(0,stop = uopt[end],length = length(u[1,:]))
-tSpan = [0,t[end]]
-uSpline = [Akima(t,u[1,:]),Akima(t,u[2,:])]
-
-#optimized simulation
-path = simulate(initial, uSpline, plane, tSpan)
+path = simulate(x, uSpline, plane, tSpan)
 plot_simulation(path, uSpline)
-path
