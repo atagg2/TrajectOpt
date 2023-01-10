@@ -3,21 +3,39 @@ using Plots
 using FLOWMath
 using DelimitedFiles
 #========Lower Fidelity System==========#
-#physical parameters
+# #physical parameters
+# m = 1.36
+# I = .0111
+# X = .5
+# L = 4.0     #tail moment arm
+# SWing = 8.0
+# bWing = 10.0
+
+# STail = 1.4
+# bTail = 2.5
+# rho = 1.225
+# mu = 1.81e-5
+# g = 9.81
+
+
+#physical system
 m = 1.36
 I = .0111
-X = .5
-L = 4.0     #tail moment arm
+cog = [.5, 0.0, 0.0]
 SWing = 8.0
 bWing = 10.0
-
+rWing = [0.0, 0.0, 0.0]
 STail = 1.4
 bTail = 2.5
+rTail = [4.0, 0.0, 0.0]
+rRotor = [0.0, 0.0, 0.0]
 rho = 1.225
 mu = 1.81e-5
 g = 9.81
 
-planeParameters = ConventionalLowFidel(m, I, X, L, SWing, bWing, STail, bTail, rho, mu, g)
+
+
+# planeParameters = ConventionalLowFidel(m, I, X, L, SWing, bWing, STail, bTail, rho, mu, g)
 
 #polar
 alphas = -5:.5:15
@@ -155,7 +173,7 @@ Cms = [
     0.328936	0.328936
 ]
 
-wing_polar_function = polar_constructor(Cds, Cls, Cms, alphas, Res)
+wing_polar = polar_constructor(Cds, Cls, Cms, alphas, Res)
 
 
 Cds = [
@@ -290,9 +308,24 @@ Cms = [
     0.185839	0.185839    
 ]
 
-tail_polar_function = polar_constructor(Cds, Cls, Cms, alphas, Res)
-planeForces = conventional_forces_constructor(wing_polar_function, tail_polar_function, planeParameters)
-planeLowFidel = LowFidel(planeParameters, planeForces)
+tail_polar = polar_constructor(Cds, Cls, Cms, alphas, Res)
+
+
+environment = Environment(rho, mu, g)
+inertia = Inertia(m, I, cog)
+wing_polar = polar_constructor(Cds, Cls, Cms, alphas, Res)
+wing = SimpleSurface(SWing, bWing, rWing, wing_polar)
+tail_polar = polar_constructor(Cds, Cls, Cms, alphas, Res)
+tail = SimpleSurface(STail, bTail, rTail, tail_polar)
+surfaces = [wing, tail]
+rotors = [SimpleRotor(rRotor)]
+parameters = Parameters(environment, inertia, surfaces, rotors)
+forces = forces_conventional_low_fidel(parameters)
+planeLowFidel = Model(parameters, forces)
+
+# tail_polar_function = polar_constructor(Cds, Cls, Cms, alphas, Res)
+# planeForces = conventional_forces_constructor(wing_polar_function, tail_polar_function, planeParameters)
+# planeLowFidel = LowFidel(planeParameters, planeForces)
 
 #========Higher Fidelity System==========#
 #general system
@@ -305,30 +338,51 @@ mu = 1.81e-5
 g = 9.81
 
 # wing
-xleWing = [0.0, 0.2]
+xleWing = [0.0, 0.0]
 yleWing = [0.0, 5.0]
 zleWing = [0.0, 0.0]
-cWing = [1.0, 0.6]
+cWing = [.8, .8]
 twistWing = [0.0, 0.0]
 phi = [0.0, 0.0]
 camberWing = fill((xc) -> 0, 2) # camberline function for each section
 
 # horizontal stabilizer
-xleTail = [0.0, 0.14]
+xleTail = [L, L]
 yleTail = [0.0, 1.25]
 zleTail = [0.0, 0.0]
-cTail = [0.7, 0.42]
+cTail = [0.56, 0.56]*.6
 twistTail = [0.0, 0.0]
 camberTail = fill((xc) -> 0, 2) # camberline function for each section
-cElevatorFraction = .25
-bElevatorFraction = .9
+
+# elevator
+xleElevator = [L, L]
+yleElevator = [0.0, 1.25]
+zleElevator = [0.0, 0.0]
+cElevator = [0.56, 0.56]*.3
+twistElevator = [0.0, 0.0]
+camberElevator = fill((xc) -> 0, 2)
+
+# rotor
+rRotor = [0.0, 0.0, 0.0]
+
+# #create model
+# parameters = ConventionalMidFidel(m, I, X, L, xleWing, yleWing, zleWing, cWing, twistWing,
+#   camberWing, xleTail, yleTail, zleTail, cTail, twistTail, camberTail, cElevatorFraction, 
+#   bElevatorFraction, rho, mu, g)
+# forces = conventional_forces_constructor(parameters)
+# planeMidFidel = HighFidel(parameters, forces)
 
 #create model
-parameters = ConventionalMidFidel(m, I, X, L, xleWing, yleWing, zleWing, cWing, twistWing,
-  camberWing, xleTail, yleTail, zleTail, cTail, twistTail, camberTail, cElevatorFraction, 
-  bElevatorFraction, rho, mu, g)
-forces = conventional_forces_constructor(parameters)
-planeHighFidel = HighFidel(parameters, forces)
+environment = Environment(rho, mu, g)
+inertia = Inertia(m, I, cog)
+wing = VLMSurface(xleWing, yleWing, zleWing, cWing, twistWing, camberWing)
+tail = VLMSurface(xleTail, yleTail, zleTail, cTail, twistTail, camberTail)
+elevator = VLMSurface(xleElevator, yleElevator, zleElevator, cElevator, twistElevator, camberElevator)
+surfaces = [wing, tail, elevator]
+rotors = [SimpleRotor(rRotor)]
+parameters = Parameters(environment, inertia, surfaces, rotors)
+forces = forces_conventional_mid_fidel(parameters)
+planeMidFidel = Model(parameters, forces)
 
 #state and input
 x = [
@@ -362,7 +416,7 @@ for i in 1:length(alphas)
     yForceLowFidel[i] = F[2]
     momentLowFidel[i] = M
 
-    F, M = planeHighFidel.forces(x,u)
+    F, M = planeMidFidel.forces(x,u)
     xForceHighFidel[i] = F[1]
     yForceHighFidel[i] = F[2]
     momentHighFidel[i] = M

@@ -6,8 +6,8 @@ function dynamics_2D!(dx, x, p, t)
     u = [uSpline[1](t),uSpline[2](t)]
     F, M = model.forces(x,u)
     #get physical parameters from model
-    m = model.parameters.m 
-    I = model.parameters.I
+    m = model.parameters.inertia.m 
+    I = model.parameters.inertia.I
     #calculate time derivatives from equtions of motion
     k = F[2]/(m*vinf^2)
     dx[1] = F[1]/m  

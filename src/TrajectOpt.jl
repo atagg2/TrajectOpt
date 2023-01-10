@@ -1,16 +1,30 @@
 module TrajectOpt
 
-    using FLOWMath, SNOW, Plots, DifferentialEquations, StaticArrays, DelimitedFiles, Snopt, VortexLattice
+    using FLOWMath, SNOW, Plots, DifferentialEquations, StaticArrays, DelimitedFiles, #=Snopt,=# VortexLattice
     DE = DifferentialEquations
     FM = FLOWMath
     SA = StaticArrays
     DF = DelimitedFiles
-    SN = Snopt
+    # SN = Snopt
     VL = VortexLattice
 
     include("models.jl")
     include("dynamics.jl")
     include("optimize.jl")
+
+
+    export Surface
+    export Rotor
+    export Environment 
+    export Inertia
+    export SimpleSurface
+    export SimpleRotor
+    export VLMSurface
+    export CCBladeRotor
+    export Parameters
+    export Model
+    export forces_conventional_low_fidel
+    export forces_conventional_mid_fidel
 
     export Model
     export LowFidel 

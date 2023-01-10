@@ -5,12 +5,14 @@ using FLOWMath
 #physical system
 m = 1.36
 I = .0111
-X = .0086
-L = .57     #tail moment arm
+cog = [.0086, 0, 0]
 SWing = .05
 bWing = .508
+rWing = [0.0, 0.0, 0.0]
 STail = .017
 bTail = .15
+rTail = [.05, 0, 0]
+rRotor = [0.0, 0.0, 0.0]
 rho = 1.225
 mu = 1.81e-5
 g = 9.81
@@ -108,11 +110,17 @@ Cms = [
   0.20143    0.198386   0.198213   0.198159   0.198117
 ]
 
-planeParameters = ConventionalLowFidel(m, I, X, L, SWing, bWing, STail, bTail, rho, mu, g)
-wing_polar_function = polar_constructor(Cds, Cls, Cms, alphas, Res)
-tail_polar_function = polar_constructor(Cds, Cls, Cms, alphas, Res)
-planeForces = conventional_forces_constructor(wing_polar_function, tail_polar_function, planeParameters)
-plane = LowFidel(planeParameters, planeForces)
+environment = Environment(rho, mu, g)
+inertia = Inertia(m, I, cog)
+wing_polar = polar_constructor(Cds, Cls, Cms, alphas, Res)
+wing = SimpleSurface(SWing, bWing, rWing, wing_polar)
+tail_polar = polar_constructor(Cds, Cls, Cms, alphas, Res)
+tail = SimpleSurface(STail, bTail, rTail, tail_polar)
+surfaces = [wing, tail]
+rotors = [SimpleRotor(rRotor)]
+parameters = Parameters(environment, inertia, surfaces, rotors)
+forces = forces_conventional_low_fidel(parameters)
+plane = Model(parameters, forces)
 
 initial = [
   29.620798165000465,
@@ -126,10 +134,10 @@ u_initial = [1.0068490831512529, -7.101753959532225]
 
 final = deepcopy(initial)
 
-# posy_final = 2
-# final[6] = posy_final
+posy_final = -2
+final[6] = posy_final
 
-VinfFinal = 40
+VinfFinal = 35
 final[1] = VinfFinal
 
 
@@ -148,4 +156,4 @@ uSpline = [Akima(t,u[1,:]),Akima(t,u[2,:])]
 #optimized simulation
 path = simulate(initial, uSpline, plane, tSpan)
 plot_simulation(path, uSpline)
-@show path
+# @show path
