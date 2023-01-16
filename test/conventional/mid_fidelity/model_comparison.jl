@@ -2,6 +2,7 @@ using TrajectOpt
 using Plots
 using FLOWMath
 using DelimitedFiles
+using CCBlade
 #========Lower Fidelity System==========#
 # #physical parameters
 # m = 1.36
@@ -323,14 +324,12 @@ parameters = Parameters(environment, inertia, surfaces, rotors)
 forces = forces_conventional_low_fidel(parameters)
 planeLowFidel = Model(parameters, forces)
 
-# tail_polar_function = polar_constructor(Cds, Cls, Cms, alphas, Res)
-# planeForces = conventional_forces_constructor(wing_polar_function, tail_polar_function, planeParameters)
-# planeLowFidel = LowFidel(planeParameters, planeForces)
 
 #========Higher Fidelity System==========#
 #general system
 m = 1.36
 I = .0111
+cog = [.5, 0.0, 0.0]
 X = .5
 L = 4.0
 rho = 1.225
@@ -363,14 +362,34 @@ twistElevator = [0.0, 0.0]
 camberElevator = fill((xc) -> 0, 2)
 
 # rotor
-rRotor = [0.0, 0.0, 0.0]
-
-# #create model
-# parameters = ConventionalMidFidel(m, I, X, L, xleWing, yleWing, zleWing, cWing, twistWing,
-#   camberWing, xleTail, yleTail, zleTail, cTail, twistTail, camberTail, cElevatorFraction, 
-#   bElevatorFraction, rho, mu, g)
-# forces = conventional_forces_constructor(parameters)
-# planeMidFidel = HighFidel(parameters, forces)
+pos = [0.0, 0.0, 0.0]
+Rtip = 10/2.0 * 0.0254 
+Rhub = 0.10*Rtip
+n = 2  
+propgeom = [
+0.15   0.130   32.76
+0.20   0.149   37.19
+0.25   0.173   33.54
+0.30   0.189   29.25
+0.35   0.197   25.64
+0.40   0.201   22.54
+0.45   0.200   20.27
+0.50   0.194   18.46
+0.55   0.186   17.05
+0.60   0.174   15.97
+0.65   0.160   14.87
+0.70   0.145   14.09
+0.75   0.128   13.39
+0.80   0.112   12.84
+0.85   0.096   12.25
+0.90   0.081   11.37
+0.95   0.061   10.19
+1.00   0.041   8.99
+]
+r = propgeom[:, 1] * Rtip
+cRotor = propgeom[:, 2] * Rtip
+twistRotor = propgeom[:, 3] * pi/180
+af = AlphaAF("files/naca4412.dat")
 
 #create model
 environment = Environment(rho, mu, g)
@@ -379,23 +398,28 @@ wing = VLMSurface(xleWing, yleWing, zleWing, cWing, twistWing, camberWing)
 tail = VLMSurface(xleTail, yleTail, zleTail, cTail, twistTail, camberTail)
 elevator = VLMSurface(xleElevator, yleElevator, zleElevator, cElevator, twistElevator, camberElevator)
 surfaces = [wing, tail, elevator]
-rotors = [SimpleRotor(rRotor)]
+rotors = [CCBladeRotor(pos, Rtip, Rhub, n, r, cRotor, twistRotor, af)]
 parameters = Parameters(environment, inertia, surfaces, rotors)
 forces = forces_conventional_mid_fidel(parameters)
 planeMidFidel = Model(parameters, forces)
 
 #state and input
 x = [
-10       # Vinf
+7.4       # Vinf
 0       # flight path angle
 0       # body angle derivative
 .1       # body angle
 0       # x position
 0       # y position
 ]   
-u = [
-5       # thrust
+uLowFidel = [
+4.974865311807443       # thrust or omega
 0     # elevator deflection
+]
+
+uMidFidel = [
+733
+0
 ]
 
 alphas = -5:.5:15
@@ -411,12 +435,12 @@ momentHighFidel = zeros(length(alphas))
 for i in 1:length(alphas)
     x[4] = alphas[i]
     
-    F, M = planeLowFidel.forces(x,u)
+    F, M = planeLowFidel.forces(x,uLowFidel)
     xForceLowFidel[i] = F[1]
     yForceLowFidel[i] = F[2]
     momentLowFidel[i] = M
 
-    F, M = planeMidFidel.forces(x,u)
+    F, M = planeMidFidel.forces(x,uMidFidel)
     xForceHighFidel[i] = F[1]
     yForceHighFidel[i] = F[2]
     momentHighFidel[i] = M

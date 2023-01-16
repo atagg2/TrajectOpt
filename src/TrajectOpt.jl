@@ -1,15 +1,17 @@
 module TrajectOpt
 
-    using FLOWMath, SNOW, Plots, DifferentialEquations, StaticArrays, DelimitedFiles, #=Snopt,=# VortexLattice
+    using FLOWMath, SNOW, Plots, DifferentialEquations, StaticArrays, DelimitedFiles, #=Snopt,=# VortexLattice, CCBlade
     DE = DifferentialEquations
     FM = FLOWMath
     SA = StaticArrays
     DF = DelimitedFiles
     # SN = Snopt
     VL = VortexLattice
+    CC = CCBlade
 
-    include("models.jl")
     include("dynamics.jl")
+    include("forces.jl")
+    include("models.jl")
     include("optimize.jl")
 
 
@@ -25,6 +27,14 @@ module TrajectOpt
     export Model
     export forces_conventional_low_fidel
     export forces_conventional_mid_fidel
+    export omega_2_thrust
+
+    export OptimizationProblem
+    export optimize
+    export objective_constructor
+    export trim_constraints
+    export trajectory_constraint_constructor
+
 
     export Model
     export LowFidel 

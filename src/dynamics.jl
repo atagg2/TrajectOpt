@@ -1,14 +1,10 @@
 function dynamics_2D!(dx, x, p, t)  
-    #get states
     vinf, gamma, thetadot, theta, posx, posy = x
-    #get parameters, inputs, and forces
     uSpline, model = p
     u = [uSpline[1](t),uSpline[2](t)]
     F, M = model.forces(x,u)
-    #get physical parameters from model
     m = model.parameters.inertia.m 
     I = model.parameters.inertia.I
-    #calculate time derivatives from equtions of motion
     k = F[2]/(m*vinf^2)
     dx[1] = F[1]/m  
     dx[2] = vinf*k  
@@ -21,7 +17,7 @@ end
 
 function simulate(x0, uSpline, model, tSpan)
     prob = DE.ODEProblem(dynamics_2D!, x0, tSpan, (uSpline, model))
-    sol = solve(prob, abstol = 1e-3, reltol = 1e-3)     
+    sol = DE.solve(prob, abstol = 1e-3, reltol = 1e-3)     
     return sol
 end
 
@@ -64,8 +60,8 @@ function plot_simulation(path, uSpline)
     plot!(t, posy, label = "Y Position")
     # plot!(t, posx, label = "X Position")
     # p2 = plot(t, u_top, xlabel = "Time (s)", ylabel = "Thrust (N)", label = "Top", legend = :topleft)
-    p2 = plot(t, u_top, xlabel = "Time (s)", ylabel = "Input", label = "Thrust", legend = :topleft)
-    plot!(t, u_bottom, label = "Elevator")
+    p2 = plot(t, u_top, xlabel = "Time (s)", ylabel = "Input", label = "u1", legend = :topleft)
+    plot!(t, u_bottom, label = "u2")
     p = plot(p1,p2,layout = 2)
     display(p)
 end

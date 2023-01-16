@@ -1,42 +1,59 @@
+struct OptimizationProblem{T1, T2, T3}
+    designVariables::Vector{T1}
+    objective::T2
+    xBounds::Array{T1}
+    gBounds::Array{T1}
+    constraints::T3
+end
 
-function optimize_trim(x0, u0, model, final)
-    trim_objective = trim_objective_constructor(final, model)
-    designVars = zeros(length(u0) + length(x0))
-    designVars[1:2] = u0
-    designVars[3:end] = x0
-    ng = 11
-    lx = -Inf*ones(length(designVars))  # lower bounds on x
-    ux = Inf*ones(length(designVars))  # upper bounds on x
-    lg = zeros(ng)
-    ug = [0,0,0,0,Inf,Inf,Inf,0,0,0,0]
-    ip_options = Dict(
-        "tol" => 1e-6,
-        "max_iter" => 3000
-        )
-    solver = IPOPT(ip_options)
-    options = Options(;solver)
-    xopt, fopt, info = minimize(trim_objective, designVars, ng, lx, ux, lg, ug,options)
+function optimize(model, problem::OptimizationProblem, options)
+    objective = objective_constructor(model, problem)
+    ng = length(problem.gBounds[:,1])
+    lx = problem.xBounds[:,1]
+    ux = problem.xBounds[:,2]
+    lg = problem.gBounds[:,1]
+    ug = problem.gBounds[:,2]
+    xopt, fopt, info = minimize(objective, problem.designVariables, ng, lx, ux, lg, ug, options)
     return xopt, fopt
 end
 
-function trim_objective_constructor(final, model)
-    function trim_objective(g, designVars)
-        u = designVars[1:2]
-        uSpline = [FM.Akima(0:2,u[1]*ones(3)), FM.Akima(0:2,u[2]*ones(3))]
-        x = designVars[3:end]
-        obj = u[1]#sum(u .^2)
-        dx = dynamics_2D!(x, x, (uSpline, model), 1) #look up best practices
-        g[1] = dx[1]
-        g[2] = dx[2]
-        g[3] = dx[3]
-        g[4] = dx[4]
-        g[5] = u[1]
-        # g[6] = u[2] 
-        g[7] = x[2]
-        g[8] = x[6] - final[6]
+function objective_constructor(model, problem::OptimizationProblem)
+    function objective(g, designVariables)
+        obj = problem.objective(designVariables)
+        problem.constraints(g, model, designVariables)
         return obj
     end
-    return trim_objective
+    return objective
+end
+
+function trim_constraints(g, model, designVariables)
+    u = designVariables[1:2]
+    x = designVariables[3:end]
+    uSpline = [Akima(0:2,u[1]*ones(3)), Akima(0:2,u[2]*ones(3))]
+    g[6] = x[2]
+    g[7] = x[4] - x[2]
+    dx = TrajectOpt.dynamics_2D!(x, x, (uSpline, model), 1)
+    g[1] = dx[1]
+    g[2] = dx[2]
+    g[3] = dx[3]
+    g[4] = dx[4]
+    g[5] = u[1]
+    return g
+end
+
+function trajectory_constraint_constructor(initial, final)
+    function trajectory_constraints(g, model, designVariables)
+        us = transpose(reshape(designVariables[1:end-1],Int((length(designVariables)-1)/2),2))
+        tSpan = [0, designVariables[end]]
+        t = range(0, stop = tSpan[2], length = length(us[1,:]))
+        uSpline = [FM.Akima(t,us[1,:]), FM.Akima(t,us[2,:])]
+        x = simulate(initial, uSpline, model, tSpan)
+        g[1] = x[6,end] - final[6]
+        g[2] = x[2,end] - final[2]
+        g[3] = x[1,end] - final[1]
+        return g
+    end
+    return trajectory_constraints
 end
 
 function optimize_trajectory(initial, final, us, tFinal, model)

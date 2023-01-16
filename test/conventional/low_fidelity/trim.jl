@@ -1,6 +1,8 @@
 using TrajectOpt
 using Plots
 using FLOWMath
+using SNOW
+using FLOWMath
 
 #physical system
 m = 1.36
@@ -111,6 +113,7 @@ Cms = [
   0.20143    0.198386   0.198213   0.198159   0.198117
 ]
 
+# create model
 environment = Environment(rho, mu, g)
 inertia = Inertia(m, I, cog)
 wing_polar = polar_constructor(Cds, Cls, Cms, alphas, Res)
@@ -123,11 +126,49 @@ parameters = Parameters(environment, inertia, surfaces, rotors)
 forces = forces_conventional_low_fidel(parameters)
 plane = Model(parameters, forces)
 
-x0 = [15, 2, 0, 5, 0, 0]
-u0 = [5, -5]
+#define design variables
+x0 = [15.0, 2.0, 0.0, 5.0, 0.0, 0.0]
+u0 = [5.0, -5.0]
+designVariables = vcat(u0,x0)
 
-final = deepcopy(x0)
-xopt, fopt = optimize_trim(x0, u0, plane, final)
+#define objective function
+objective(designVariables) = abs(designVariables[1])
+
+#define bounds
+xBounds = [
+  -Inf Inf
+  -25 25
+  0 25
+  -Inf Inf
+  -Inf Inf
+  -Inf Inf
+  -Inf Inf
+  -Inf Inf
+]
+gBounds = [
+  0.0   0.0
+  0.0   0.0
+  0.0   0.0
+  0.0   0.0
+  0.0  Inf
+  0.0  Inf
+  0.0  15.0
+]
+
+#define constraints
+constraints = trim_constraints
+
+#define optimization problem
+trimProblem = OptimizationProblem(designVariables, objective, xBounds, gBounds, constraints)
+
+#define solver
+ip_options = Dict("tol" => 1e-6, "max_iter" => 3000)
+solver = IPOPT(ip_options)
+options = Options(;solver)
+
+#solve
+xopt, fopt = optimize(plane, trimProblem, options)
+
 u = xopt[1:2]
 x = xopt[3:end]
 

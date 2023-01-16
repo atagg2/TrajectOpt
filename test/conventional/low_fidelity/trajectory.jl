@@ -1,6 +1,7 @@
 using TrajectOpt
 using Plots
 using FLOWMath
+using SNOW
 
 #physical system
 m = 1.36
@@ -110,6 +111,7 @@ Cms = [
   0.20143    0.198386   0.198213   0.198159   0.198117
 ]
 
+#create model
 environment = Environment(rho, mu, g)
 inertia = Inertia(m, I, cog)
 wing_polar = polar_constructor(Cds, Cls, Cms, alphas, Res)
@@ -122,8 +124,9 @@ parameters = Parameters(environment, inertia, surfaces, rotors)
 forces = forces_conventional_low_fidel(parameters)
 plane = Model(parameters, forces)
 
+#define initial and final conditions
 initial = [
-  29.620798165000465,
+ 29.620798165000465,
 -1.0218757699999816e-14,
  0.0,
  0.9954411765904372,
@@ -131,21 +134,67 @@ initial = [
  0.0
 ]  
 u_initial = [1.0068490831512529, -7.101753959532225]
-
 final = deepcopy(initial)
-
-posy_final = -2
-final[6] = posy_final
-
+# posy_final = -2
+# final[6] = posy_final
 VinfFinal = 35
 final[1] = VinfFinal
-
-
 tFinal = 4
 
+#define design variables
 us = u_initial.*ones(2,10)
+designVariables = vcat(us[1,:], us[2,:], tFinal)
 
-uopt, fopt = optimize_trajectory(initial, final, us, tFinal, plane)
+#define objective function
+objective(designVariables) = sum(designVariables[1:Int((end-1)/2)].^2)
+
+#define bounds
+xBounds = [
+  0.0 5.0
+  0.0 5.0
+  0.0 5.0
+  0.0 5.0
+  0.0 5.0
+  0.0 5.0
+  0.0 5.0
+  0.0 5.0
+  0.0 5.0
+  -30.0 30.0
+  -30.0 30.0
+  -30.0 30.0
+  -30.0 30.0
+  -30.0 30.0
+  -30.0 30.0
+  -30.0 30.0
+  -30.0 30.0
+  -30.0 30.0
+  -30.0 30.0
+  -30.0 30.0
+  0.0 Inf
+]
+
+gBounds = [
+  0.0 0.0
+  0.0 0.0
+  0.0 0.0
+  0.0 0.0
+]
+
+#define constraints
+constraints = trajectory_constraint_constructor(initial, final)
+
+#define optimization problem
+trajectoryProblem = OptimizationProblem(designVariables, objective, xBounds, gBounds, constraints)
+
+#define solver
+ip_options = Dict("tol" => 1e-1, "max_iter" => 1000)
+solver = IPOPT(ip_options)
+options = Options(derivatives = ForwardAD(); solver)
+
+#solve
+uopt, fopt = optimize(plane, trajectoryProblem, options)
+
+#setup for simulation
 u = zeros(size(us))
 u[1,:] = uopt[1:Int((end-1)/2)]
 u[2,:] = uopt[Int((end-1)/2)+1:end-1]
@@ -156,4 +205,3 @@ uSpline = [Akima(t,u[1,:]),Akima(t,u[2,:])]
 #optimized simulation
 path = simulate(initial, uSpline, plane, tSpan)
 plot_simulation(path, uSpline)
-# @show path
