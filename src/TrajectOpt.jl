@@ -35,6 +35,8 @@ module TrajectOpt
     export trim_constraints
     export trajectory_constraint_constructor
 
+    export Inputs
+    export forces_low_fidel
 
     export Model
     export LowFidel 

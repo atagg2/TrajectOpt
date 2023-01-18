@@ -95,7 +95,7 @@ plane = Model(parameters, forces)
 # 0     # elevator deflection
 # ]
 
-x = [216.74617936267427
+x = [10
 -4.892643981926575e-10
 -1.9617151912584933e-20
  0.0005885655318472827
@@ -134,7 +134,7 @@ xForceXflr = u[1]*cosd.(alphas) .- D
 yForceXflr = u[1]*sind.(alphas) .+ L .- m*g
 
 plot(alphas, xForceTrajectOpt, xlabel = "Angle of Attack (degrees)", ylabel = "X Force (N)", label = "TrajectOpt")
-# scatter!(alphas, xForceXflr, label = "Xflr")
+scatter!(alphas, xForceXflr, label = "Xflr")
 
 # plot(alphas, yForceTrajectOpt, xlabel = "Angle of Attack (degrees)", ylabel = "Y Force (N)", label = "TrajectOpt")
 # scatter!(alphas, yForceXflr, label = "Xflr")

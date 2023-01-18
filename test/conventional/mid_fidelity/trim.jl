@@ -117,9 +117,10 @@ trim_problem = OptimizationProblem(designVariables, objective, xBounds, gBounds,
 #define solver
 ip_options = Dict("tol" => 1e-6, "max_iter" => 3000)
 solver = IPOPT(ip_options)
+options = Options(derivatives = ForwardAD(); solver)
 
 #solve
-xopt, fopt = optimize(plane, trim_problem, solver)
+xopt, fopt = optimize(plane, trim_problem, options)
 
 # final = deepcopy(x0)
 # xopt, Popt = optimize_trim(x0, u0, plane, final)

@@ -1,3 +1,8 @@
+struct Inputs{T1, T2}
+    rotorCommands::Vector{T1}
+    controlSurfaceCommands::Vector{T2}
+end
+
 function polar_constructor(Cds,Cls,Cms,alphas,Res)
     function polar_function(alpha, Re)         #interpolation
         Cd = interp2d(linear, alphas, Res, Cds, alpha, Re)
@@ -6,6 +11,47 @@ function polar_constructor(Cds,Cls,Cms,alphas,Res)
         return [Cd;Cl;Cm]
     end
     return polar_function
+end
+
+function forces_low_fidel(parameters::Parameters)
+    function forces(x, u::Inputs)
+        vinf, gamma, thetadot, theta, posx, posy = x
+        alpha = theta - gamma
+        thrusts = u.rotorCommands
+        deflections = u.controlSurfaceCommands
+        inertia = parameters.inertia
+        environment = parameters.environment
+        X = inertia.cog[1]
+        m = inertia.m
+        rho = environment.rho
+        mu = environment.mu
+        g = environment.g
+
+        F = zeros(0)
+        M = 0
+        for i in 1:length(parameters.surfaces)
+            s = parameters.surfaces[i]
+            alphaNew = alpha + deflections[i] 
+            c = s.S/s.b
+            Re = rho*vinf*c/mu
+            Cd, Cl, Cm = s.polar(alphaNew, Re)
+            D = Cd*.5*rho*vinf^2*s.S
+            L = Cl*.5*rho*vinf^2*s.S
+            F[1] -= D
+            F[2] += L
+            
+            M += Cm*.5*rho*vinf^2*s.S*c - r[1]*(D*sind(alpha) + 
+                L*cosd(alpha)) + r[3]*(D*cosd(alpha) - L*sind(alpha)) 
+        end
+        for i in 1:length(parameters.rotors)
+           F[1] += thrusts[i]*cosd(alpha)
+           F[2] += thrusts[i]*sind(alpha)
+           M += thrusts[i]*parameters.rotors[i].r[3]
+        end
+
+        return F, M
+    end
+    return forces
 end
 
 function forces_conventional_low_fidel(parameters::Parameters)
@@ -115,10 +161,11 @@ function forces_conventional_mid_fidel(parameters::Parameters)
             -sind(deflection) 0 cosd(deflection)
         ]
         gridElevator = grids[3]
-        VL.translate!(gridElevator, [-L, 0.0, 0.0])
+        VL.translate!(grids[3], [-L, 0.0, 0.0])
+        @show R[1][1]
         for i in 1:length(gridElevator[1,:,1])
             for j in 1:length(gridElevator[1,1,:])
-                gridElevator[:,i,j] = R*gridElevator[:,i,j]
+                gridElevator[:,i,j] = R*grids[3][:,i,j]
             end
         end
         VL.translate!(gridElevator, [L, 0.0, 0.0])
@@ -130,7 +177,6 @@ function forces_conventional_mid_fidel(parameters::Parameters)
         # extract 2D force and moment coefficients  
         Cd, _, Cl = CF
         _, Cm, _ = CM
-        # @show Cd Cl
         # denormalize
         F = [Cd,Cl]*.5*rho*Vinf^2*Sref
         M = Cm*.5*rho*Vinf^2*Sref*cref
