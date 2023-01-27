@@ -29,10 +29,11 @@ end
 function trim_constraints(g, model, designVariables)
     u = designVariables[1:2]
     x = designVariables[3:end]
-    uSpline = [Akima(0:2,u[1]*ones(3)), Akima(0:2,u[2]*ones(3))]
+    us = [u[1]*ones(3), u[2]*ones(3)]
     g[6] = x[2]
     g[7] = x[4] - x[2]
-    dx = TrajectOpt.dynamics_2D!(x, x, (uSpline, model), 1)
+    simulate(x, range(0, stop = .1, length = 3), us, model, [0 .1])
+    dx = TrajectOpt.dynamics_2D!(x, x, (0:2, us, model), 1)
     g[1] = dx[1]
     g[2] = dx[2]
     g[3] = dx[3]
@@ -43,11 +44,12 @@ end
 
 function trajectory_constraint_constructor(initial, final)
     function trajectory_constraints(g, model, designVariables)
-        us = transpose(reshape(designVariables[1:end-1],Int((length(designVariables)-1)/2),2))
+        # us = transpose(reshape(designVariables[1:end-1],Int((length(designVariables)-1)/2),2))
+        us = [designVariables[1:Int((end-1)/2)], designVariables[Int((end-1)/2)+1:end-1]]
         tSpan = [0, designVariables[end]]
-        t = range(0, stop = tSpan[2], length = length(us[1,:]))
-        uSpline = [FM.Akima(t,us[1,:]), FM.Akima(t,us[2,:])]
-        x = simulate(initial, uSpline, model, tSpan)
+        ts = range(0, stop = tSpan[2], length = length(us[1]))
+        # uSpline = [us[1,:],us[2,:]]
+        x = simulate(initial, ts, us, model, tSpan)
         g[1] = x[6,end] - final[6]
         g[2] = x[2,end] - final[2]
         g[3] = x[1,end] - final[1]
@@ -97,37 +99,6 @@ function trajectory_objective_constructor(initial, final, model)
         g[2] = x[2,end] - final[2]
         g[3] = x[1,end] - final[1]
         # g[4] = x[2,end] - x[2,end-1]
-
-        # mappedXIndices = Int.(round.(range(1, stop = length(x[1,:]), length = length(t))))
-        # g[2:length(t)+1] = x[1,mappedXIndices] .- initial[1]
-        # g[2:length(t)+1] = x[2,mappedXIndices]
-        # g[length(t)+1:end] = x[4,mappedXIndices]
-
-        # Vinf = zeros(length(x.u))
-        # gamma = zeros(length(x.u))
-        # theta_dot = zeros(length(x.u))
-        # theta = zeros(length(x.u))
-        # posx = zeros(length(x.u))
-        # posy = zeros(length(x.u))
-        # for i in 1:length(x.u)
-        #     Vinf[i] = x.u[i][1]
-        #     gamma[i] = x.u[i][2]
-        #     theta_dot[i] = x.u[i][3]
-        #     theta[i] = x.u[i][4]
-        #     posx[i] = x.u[i][5]
-        #     posy[i] = x.u[i][6]
-        # end
-        # Vinf_spline = FM.Akima(x.t,Vinf)
-        # gamma_spline = FM.Akima(x.t,gamma)
-        # theta_spline = FM.Akima(x.t,theta)
-        # posy_spline = FM.Akima(x.t,posy)  
-        # Vinf_map = Vinf_spline.(t)
-        # gamma_map = gamma_spline.(t)
-        # theta_map = theta_spline.(t)
-        # posy_map = posy_spline.(t)
-        # open("optimization_outputs.txt", "a") do io
-        #     DF.writedlm(io, [t, us[1,:], us[2,:], Vinf_map, gamma_map, theta_map, posy_map])
-        # end
         return obj
     end
 end 
@@ -186,34 +157,6 @@ function optimize_trajectory_by_segments(initial, final, us, tFinal, nSegs, mode
     return t, uoptSpline, fopt, u
 end
 
-function optimization_tracker()
-
-    Vinf = zeros(length(x.u))
-    gamma = zeros(length(x.u))
-    theta_dot = zeros(length(x.u))
-    theta = zeros(length(x.u))
-    posx = zeros(length(x.u))
-    posy = zeros(length(x.u))
-    for i in 1:length(x.u)
-        Vinf[i] = x.u[i][1]
-        gamma[i] = x.u[i][2]
-        theta_dot[i] = x.u[i][3]
-        theta[i] = x.u[i][4]
-        posx[i] = x.u[i][5]
-        posy[i] = x.u[i][6]
-    end
-    Vinf_spline = FM.Akima(x.t,Vinf)
-    gamma_spline = FM.Akima(x.t,gamma)
-    theta_spline = FM.Akima(x.t,theta)
-    posy_spline = FM.Akima(x.t,posy)  
-    Vinf_map = Vinf_spline.(t)
-    gamma_map = gamma_spline.(t)
-    theta_map = theta_spline.(t)
-    posy_map = posy_spline.(t)
-    open("optimization_outputs.txt", "a") do io
-        DF.writedlm(io, [t, us[1,:], us[2,:], Vinf_map, gamma_map, theta_map, posy_map])
-    end
-end
 
 
 

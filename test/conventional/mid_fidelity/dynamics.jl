@@ -81,19 +81,18 @@ plane = Model(parameters, forces)
 
 x0 = [25.0000000000548
    6.96392087655856e-15
-  -5.999998907734639e-9
+  5
    0.007078442538802229
- 227.29577828161197
- 320.43033695848163]
+ 0
+ 0]
 
-u = [ 0.000250088702418036
+u = [ 2000
 -0.001405209044108578]
 
 tSpan = [0 1]
-t = range(0, stop = tSpan[2], length = 100)
-deflections = u[2]*ones(length(t))
-# deflections[40:48] .= -.5
-uSpline = [Akima(t,u[1]*ones(length(t))), Akima(t, deflections)]
+ts = range(0, stop = tSpan[2], length = 20)
+us = [u[1]*ones(length(ts)), u[2]*ones(length(ts))]
 
-path = simulate(x0, uSpline, plane, tSpan)
-plot_simulation(path, uSpline)
+clear_paths()
+path = simulate(x0, ts, us, plane, tSpan)
+visualize_paths(1, 0)

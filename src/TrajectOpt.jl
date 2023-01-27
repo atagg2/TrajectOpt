@@ -1,19 +1,19 @@
 module TrajectOpt
 
-    using FLOWMath, SNOW, Plots, DifferentialEquations, StaticArrays, DelimitedFiles, #=Snopt,=# VortexLattice, CCBlade
+    using FLOWMath, SNOW, Plots, DifferentialEquations, 
+    StaticArrays, DelimitedFiles, VortexLattice, CCBlade, LinearAlgebra
     DE = DifferentialEquations
     FM = FLOWMath
     SA = StaticArrays
     DF = DelimitedFiles
-    # SN = Snopt
     VL = VortexLattice
     CC = CCBlade
 
+    include("models.jl")
     include("dynamics.jl")
     include("forces.jl")
-    include("models.jl")
     include("optimize.jl")
-
+    include("visualizations.jl")
 
     export Surface
     export Rotor
@@ -25,9 +25,10 @@ module TrajectOpt
     export CCBladeRotor
     export Parameters
     export Model
-    export forces_conventional_low_fidel
-    export forces_conventional_mid_fidel
-    export omega_2_thrust
+
+    export dynamics2D!
+    export simulate
+    export plot_simulation
 
     export OptimizationProblem
     export optimize
@@ -35,23 +36,14 @@ module TrajectOpt
     export trim_constraints
     export trajectory_constraint_constructor
 
-    export Inputs
-    export forces_low_fidel
-
-    export Model
-    export LowFidel 
-    export HighFidel
-    export ConventionalLowFidel
-    export ConventionalMidFidel
-    export BiWingTailSitterLowFidel
+    export forces_conventional_low_fidel
+    export forces_conventional_mid_fidel
     export polar_constructor
-    export conventional_forces_constructor
-    export biwing_tailsitter_forces_constructor
-    export dynamics2D!
-    export simulate
-    export plot_simulation
-    export optimize_trim
-    export optimize_trajectory
-    export optimize_trajectory_by_segments
+    export solve_rotor
+
+    export store_path
+    export clear_paths
+    export visualize_paths
+    export truncate
 
 end

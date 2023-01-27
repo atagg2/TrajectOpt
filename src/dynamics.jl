@@ -1,7 +1,8 @@
 function dynamics_2D!(dx, x, p, t)  
     vinf, gamma, thetadot, theta, posx, posy = x
-    uSpline, model = p
-    u = [uSpline[1](t),uSpline[2](t)]
+    ts, us, model = p
+    ts = fill(ts, length(us))
+    u = akima.(ts, us, t)
     F, M = model.forces(x,u)
     m = model.parameters.inertia.m 
     I = model.parameters.inertia.I
@@ -15,13 +16,14 @@ function dynamics_2D!(dx, x, p, t)
     return dx
 end
 
-function simulate(x0, uSpline, model, tSpan)
-    prob = DE.ODEProblem(dynamics_2D!, x0, tSpan, (uSpline, model))
+function simulate(x0, ts, us, model, tSpan)
+    prob = DE.ODEProblem(dynamics_2D!, x0, tSpan, (ts, us, model))
     sol = DE.solve(prob, abstol = 1e-3, reltol = 1e-3)     
+    store_path(sol, ts, us)
     return sol
 end
 
-function plot_simulation(path, uSpline)
+function plot_simulation(path, ts, us)
     Vinf_points = zeros(length(path.u))
     gamma_points = zeros(length(path.u))
     theta_dot_points = zeros(length(path.u))
@@ -37,6 +39,8 @@ function plot_simulation(path, uSpline)
         posy_points[i] = path.u[i][6]
     end
 
+    u_top_spline = Akima(ts, us[1])
+    u_bottom_spline = Akima(ts, us[2])
     Vinf_spline = Akima(path.t, Vinf_points)
     gamma_spline = Akima(path.t, gamma_points)
     theta_spline = Akima(path.t, theta_points)
@@ -45,8 +49,8 @@ function plot_simulation(path, uSpline)
 
     t = range(path.t[1], stop = path.t[end], length = 200)
     Vinf = Vinf_spline.(t)
-    u_top = uSpline[1].(t)
-    u_bottom = uSpline[2].(t)
+    u_top = u_top_spline.(t)
+    u_bottom = u_bottom_spline.(t)
     gamma = gamma_spline.(t)
     theta = theta_spline.(t)
     posy = posy_spline.(t)

@@ -19,7 +19,6 @@ rho = 1.225
 mu = 1.81e-5
 g = 9.81
 
-
 #VLM model
 alphas = -16:10
 Res = [66000, 133000, 200000, 266000, 333000]
@@ -167,14 +166,7 @@ solver = IPOPT(ip_options)
 options = Options(;solver)
 
 #solve
+clear_paths()
 xopt, fopt = optimize(plane, trimProblem, options)
-
-u = xopt[1:2]
-x = xopt[3:end]
-
-tSpan = [0 10]
-t = range(0, stop = tSpan[2], length = 100)
-uSpline = [Akima(t,u[1]*ones(length(t))), Akima(t,u[2]*ones(length(t)))]
-
-path = simulate(x, uSpline, plane, tSpan)
-plot_simulation(path, uSpline)
+visualize_paths(1, .001)
+@show xopt fopt

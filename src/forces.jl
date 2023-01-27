@@ -1,59 +1,3 @@
-struct Inputs{T1, T2}
-    rotorCommands::Vector{T1}
-    controlSurfaceCommands::Vector{T2}
-end
-
-function polar_constructor(Cds,Cls,Cms,alphas,Res)
-    function polar_function(alpha, Re)         #interpolation
-        Cd = interp2d(linear, alphas, Res, Cds, alpha, Re)
-        Cl = interp2d(linear, alphas, Res, Cls, alpha, Re)
-        Cm = interp2d(linear, alphas, Res, Cms, alpha, Re)
-        return [Cd;Cl;Cm]
-    end
-    return polar_function
-end
-
-function forces_low_fidel(parameters::Parameters)
-    function forces(x, u::Inputs)
-        vinf, gamma, thetadot, theta, posx, posy = x
-        alpha = theta - gamma
-        thrusts = u.rotorCommands
-        deflections = u.controlSurfaceCommands
-        inertia = parameters.inertia
-        environment = parameters.environment
-        X = inertia.cog[1]
-        m = inertia.m
-        rho = environment.rho
-        mu = environment.mu
-        g = environment.g
-
-        F = zeros(0)
-        M = 0
-        for i in 1:length(parameters.surfaces)
-            s = parameters.surfaces[i]
-            alphaNew = alpha + deflections[i] 
-            c = s.S/s.b
-            Re = rho*vinf*c/mu
-            Cd, Cl, Cm = s.polar(alphaNew, Re)
-            D = Cd*.5*rho*vinf^2*s.S
-            L = Cl*.5*rho*vinf^2*s.S
-            F[1] -= D
-            F[2] += L
-            
-            M += Cm*.5*rho*vinf^2*s.S*c - r[1]*(D*sind(alpha) + 
-                L*cosd(alpha)) + r[3]*(D*cosd(alpha) - L*sind(alpha)) 
-        end
-        for i in 1:length(parameters.rotors)
-           F[1] += thrusts[i]*cosd(alpha)
-           F[2] += thrusts[i]*sind(alpha)
-           M += thrusts[i]*parameters.rotors[i].r[3]
-        end
-
-        return F, M
-    end
-    return forces
-end
-
 function forces_conventional_low_fidel(parameters::Parameters)
     function forces(x, u)
         #current state and inputs
@@ -62,7 +6,7 @@ function forces_conventional_low_fidel(parameters::Parameters)
         #get physical and environmental parameters
         inertia = parameters.inertia
         environment = parameters.environment
-        X = inertia.cog[1]
+        X = -inertia.cog[1]
         m = inertia.m
         rho = environment.rho
         mu = environment.mu
@@ -126,11 +70,11 @@ function forces_conventional_mid_fidel(parameters::Parameters)
         phi = [0.0, 0.0]    # horizontal wing
         fc = s.camber
         grids[i], surfaces[i] = wing_to_surface_panels(s.xle, s.yle, s.zle, s.chord, s.twist, phi, ns, nc;
-            fc = fc, spacing_s=spacing_s, spacing_c=spacing_c)
+            fc = fc, spacing_s=spacing_s, spacing_c=spacing_c, mirror=true)
     end
     surfaces = [surfaces[1],surfaces[2],surfaces[3]]      #there is probably a better way to do this
     # we can use symmetry since the geometry and flow conditions are symmetric about the X-Z axis
-    symmetric = fill(true, length(surfaces))
+    symmetric = fill(false, length(surfaces))
     # reference parameters
     Vinfref = 10
     Sref = 1#(chord[1] + chord[2])*(yle[2] - yle[1])/2
@@ -151,9 +95,10 @@ function forces_conventional_mid_fidel(parameters::Parameters)
         Vinf, gamma, thetadot, theta, posx, posy = x
         alpha = theta - gamma
         omega, deflection = u
-        thrust, _ = omega_2_thrust(omega, Vinf, parameters.environment, parameters.rotors[1])
+        thrust, torque, U, V = solve_rotor(omega, Vinf, parameters.environment, parameters.rotors[1])
         # reset the freestream
         fs = Freestream(Vinf, alpha*pi/180, beta, Omega)
+        wake = wake_function(parameters.rotors[1], U, V)
         # reset the elevator geometry
         R = [
             cosd(deflection) 0 sind(deflection)
@@ -162,7 +107,6 @@ function forces_conventional_mid_fidel(parameters::Parameters)
         ]
         gridElevator = grids[3]
         VL.translate!(grids[3], [-L, 0.0, 0.0])
-        @show R[1][1]
         for i in 1:length(gridElevator[1,:,1])
             for j in 1:length(gridElevator[1,1,:])
                 gridElevator[:,i,j] = R*grids[3][:,i,j]
@@ -171,12 +115,13 @@ function forces_conventional_mid_fidel(parameters::Parameters)
         VL.translate!(gridElevator, [L, 0.0, 0.0])
         VL.update_surface_panels!(surfaces[3], gridElevator)
         # update aircraft
-        steady_analysis!(aircraft, surfaces, ref, fs; symmetric=symmetric)
+        steady_analysis!(aircraft, surfaces, ref, fs; symmetric=symmetric, additional_velocity = wake)
         # retrieve near-field forces
         CF, CM = body_forces(aircraft; frame=Wind())
         # extract 2D force and moment coefficients  
         Cd, _, Cl = CF
         _, Cm, _ = CM
+        @show Cd
         # denormalize
         F = [Cd,Cl]*.5*rho*Vinf^2*Sref
         M = Cm*.5*rho*Vinf^2*Sref*cref
@@ -195,21 +140,91 @@ function forces_conventional_mid_fidel(parameters::Parameters)
         end
         VL.translate!(gridElevator, [L, 0.0, 0.0])
         VL.update_surface_panels!(surfaces[3], gridElevator)
-
         return F, M
     end
     return forces
 end
 
-function vlm_surface_setup(parameters::Parameters)
-    return aircraft
+function polar_constructor(Cds,Cls,Cms,alphas,Res)
+    function polar_function(alpha, Re)         #interpolation
+        Cd = interp2d(linear, alphas, Res, Cds, alpha, Re)
+        Cl = interp2d(linear, alphas, Res, Cls, alpha, Re)
+        Cm = interp2d(linear, alphas, Res, Cms, alpha, Re)
+        return [Cd;Cl;Cm]
+    end
+    return polar_function
 end
 
-function omega_2_thrust(omega, Vinf, environment::Environment, rotor::CCBladeRotor)
+function solve_rotor(omega, Vinf, environment::Environment, rotor::CCBladeRotor)
     CCRotor = CC.Rotor(rotor.Rhub, rotor.Rtip, rotor.n)     #this is confusing because there are two types of rotors
     sections = Section.(rotor.r, rotor.chord, rotor.theta, Ref(rotor.af))
     op = simple_op.(Vinf, omega, rotor.r, environment.rho)
     BEMSolution = CC.solve.(Ref(CCRotor), sections, op)
     thrust, torque = thrusttorque(CCRotor, sections, BEMSolution)
-    return thrust, torque
+    U = BEMSolution.u
+    V = BEMSolution.v
+    return thrust, torque, U, V
+end
+
+function wake_function(rotor, U, V)
+    function velocities(pos)
+        VAdded = @MVec zeros(3)
+        if rotor.pos[1] <= pos[1]
+            r = pos - rotor.pos
+            if norm(r[2:3]) <= rotor.Rtip
+                VAdded[1] += 2*akima(rotor.r, U, norm(r[2:3]))
+                VAdded[2] += akima(rotor.r, V, norm(r[2:3]))*sin(-atan(r[3], r[2]))
+                VAdded[3] += akima(rotor.r, V, norm(r[2:3]))*cos(-atan(r[3], r[2]))
+            end
+        end
+        return VAdded
+    end
+    return velocities
+end
+
+
+
+struct Inputs{T1, T2}
+    rotorCommands::Vector{T1}
+    controlSurfaceCommands::Vector{T2}
+end
+
+function forces_low_fidel(parameters::Parameters)
+    function forces(x, u::Inputs)
+        vinf, gamma, thetadot, theta, posx, posy = x
+        alpha = theta - gamma
+        thrusts = u.rotorCommands
+        deflections = u.controlSurfaceCommands
+        inertia = parameters.inertia
+        environment = parameters.environment
+        m = inertia.m
+        rho = environment.rho
+        mu = environment.mu
+        g = environment.g
+        F = Vector{typeof(vinf)}(undef, 2)
+        M = 0
+        for i in 1:length(parameters.surfaces)
+            s = parameters.surfaces[i]
+            alphaNew = alpha + deflections[i] 
+            c = s.S/s.b
+            Re = rho*vinf*c/mu
+            Cd, Cl, Cm = s.polar(alphaNew, Re)
+            D = Cd*.5*rho*vinf^2*s.S
+            L = Cl*.5*rho*vinf^2*s.S
+            F[1] -= D
+            F[2] += L
+            r = s.r - inertia.cog
+            M += Cm*.5*rho*vinf^2*s.S*c - r[1]*(D*sind(alpha) + 
+                L*cosd(alpha)) + r[3]*(D*cosd(alpha) - L*sind(alpha)) 
+        end
+        for i in 1:length(parameters.rotors)
+           F[1] += thrusts[i]*cosd(alpha)
+           F[2] += thrusts[i]*sind(alpha)
+           M += thrusts[i]*parameters.rotors[i].r[3]
+        end
+        F[1] -= m*g*sind(gamma)
+        F[2] -= m*g*cosd(gamma)
+        return F, M
+    end
+    return forces
 end

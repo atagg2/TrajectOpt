@@ -2,6 +2,7 @@ using TrajectOpt
 using Plots
 using FLOWMath
 using CCBlade
+using SNOW
 
 # general parameters
 m = 1.36
@@ -112,27 +113,15 @@ gBounds = [
 constraints = trim_constraints
 
 #define optimization problem
-trim_problem = OptimizationProblem(designVariables, objective, xBounds, gBounds, constraints)
+trimProblem = OptimizationProblem(designVariables, objective, xBounds, gBounds, constraints)
 
 #define solver
 ip_options = Dict("tol" => 1e-6, "max_iter" => 3000)
 solver = IPOPT(ip_options)
-options = Options(derivatives = ForwardAD(); solver)
+options = Options(; solver)
 
 #solve
-xopt, fopt = optimize(plane, trim_problem, options)
-
-# final = deepcopy(x0)
-# xopt, Popt = optimize_trim(x0, u0, plane, final)
-u = xopt[1:2]
-x = xopt[3:end]
-
-tSpan = [0 1]
-t = range(0, stop = tSpan[2], length = 100)
-uSpline = [Akima(t,u[1]*ones(length(t))), Akima(t,u[2]*ones(length(t)))]
-
-path = simulate(x, uSpline, plane, tSpan)
-plot_simulation(path, uSpline)
-
-thrust, torque = omega_2_thrust(u[1], x[1], environment, rotors[1])
-@show x u thrust torque Popt
+clear_paths()
+xopt, fopt = optimize(plane, trimProblem, options)
+visualize_paths(1, .001)
+@show xopt fopt

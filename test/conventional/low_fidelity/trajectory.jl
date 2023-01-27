@@ -187,21 +187,11 @@ constraints = trajectory_constraint_constructor(initial, final)
 trajectoryProblem = OptimizationProblem(designVariables, objective, xBounds, gBounds, constraints)
 
 #define solver
-ip_options = Dict("tol" => 1e-1, "max_iter" => 1000)
+ip_options = Dict("tol" => 1e-1, "max_iter" => 100)
 solver = IPOPT(ip_options)
 options = Options(derivatives = ForwardAD(); solver)
 
 #solve
-uopt, fopt = optimize(plane, trajectoryProblem, options)
-
-#setup for simulation
-u = zeros(size(us))
-u[1,:] = uopt[1:Int((end-1)/2)]
-u[2,:] = uopt[Int((end-1)/2)+1:end-1]
-t = range(0,stop = uopt[end],length = length(u[1,:]))
-tSpan = [0,t[end]]
-uSpline = [Akima(t,u[1,:]),Akima(t,u[2,:])]
-
-#optimized simulation
-path = simulate(initial, uSpline, plane, tSpan)
-plot_simulation(path, uSpline)
+clear_paths()
+optimize(plane, trajectoryProblem, options)
+visualize_paths(1, .001)

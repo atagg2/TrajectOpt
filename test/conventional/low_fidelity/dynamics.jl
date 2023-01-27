@@ -5,7 +5,7 @@ using FLOWMath
 #physical system
 m = 1.36
 I = .0111
-cog = [.0086, 0, 0]
+cog = [-.0086, 0, 0]
 SWing = .05
 bWing = .508
 rWing = [0.0, 0.0, 0.0]
@@ -124,9 +124,11 @@ plane = Model(parameters, forces)
 
 x0 = [15, 2, 0, 5, 0, 0]
 u = [5, -5]
-tSpan = [0 5]
-t = range(0, stop = tSpan[2], length = 100)
-uSpline = [Akima(t,u[1]*ones(length(t))), Akima(t,u[2]*ones(length(t)))]
 
-path = simulate(x0, uSpline, plane, tSpan)
-plot_simulation(path, uSpline)
+tSpan = [0 5]
+ts = range(0, stop = tSpan[2], length = 100)
+us = [u[1]*ones(length(ts)), u[2]*ones(length(ts))]
+
+clear_paths()
+path = simulate(x0, ts, us, plane, tSpan)
+visualize_paths(1, 0)

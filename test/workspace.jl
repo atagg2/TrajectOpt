@@ -1,95 +1,18 @@
 using TrajectOpt
 using Plots
 using FLOWMath
-using DelimitedFiles
-
-#general system
-m = 1.36
-I = .0111
-X = .5
-L = 4.0
-rho = 1.225
-mu = 1.81e-5
-g = 9.81
-
-# wing
-xleWing = [0.0, 0.2]
-yleWing = [0.0, 5.0]
-zleWing = [0.0, 0.0]
-cWing = [1.0, 0.6]
-twistWing = [0.0, 0.0]
-phi = [0.0, 0.0]
-camberWing = fill((xc) -> 0, 2) # camberline function for each section
-# ns = 12
-# nc = 6
-# spacing_s = Uniform()
-# spacing_c = Uniform()
-# mirror = false
-
-# horizontal stabilizer
-xleTail = [0.0, 0.14]
-yleTail = [0.0, 1.25]
-zleTail = [0.0, 0.0]
-cTail = [0.7, 0.42]
-twistTail = [0.0, 0.0]
-camberTail = fill((xc) -> 0, 2) # camberline function for each section
-# ns = 6
-# nc_h = 3
-# spacing_s_h = Uniform()
-# spacing_c_h = Uniform()
-# mirror_h = false
-cElevatorFraction = .25
-bElevatorFraction = .9
-
-#create model
-parameters = ConventionalMidFidel(m, I, X, L, xleWing, yleWing, zleWing, cWing, twistWing,
-  camberWing, xleTail, yleTail, zleTail, cTail, twistTail, camberTail, cElevatorFraction, 
-  bElevatorFraction, rho, mu, g)
-forces = conventional_forces_constructor(parameters)
-planeHighFidel = HighFidel(parameters, forces)
-
-#state and input
-x = [
-10       # Vinf
-0       # flight path angle
-0       # body angle derivative
-.1       # body angle
-0       # x position
-0       # y position
-]   
-u = [
-5       # thrust
-0     # elevator deflection
-]
-
-# tSpan = [0 3]
-# t = range(0, stop = tSpan[2], length = 10)
-
-# uSpline = [Akima(t,u[1]*ones(length(t))), Akima(t,u[2]*ones(length(t)))]
-
-planeHighFidel.forces(x,u)
-
-# path = simulate(x, uSpline, CRC3, tSpan)
-# plot_simulation(path, uSpline)
-
-
-
-
-
-
-
-
-
 
 #physical system
 m = 1.36
 I = .0111
-X = .0086
-L = .57     #tail moment arm
+cog = [-.0086, 0, 0]
 SWing = .05
 bWing = .508
+rWing = [0.0, 0.0, 0.0]
 STail = .017
 bTail = .15
+rTail = [.05, 0, 0]
+rRotor = [0.0, 0.0, 0.0]
 rho = 1.225
 mu = 1.81e-5
 g = 9.81
@@ -186,9 +109,35 @@ Cms = [
   0.18337    0.180956   0.180812   0.180767   0.180732
   0.20143    0.198386   0.198213   0.198159   0.198117
 ]
-planeParameters = ConventionalLowFidel(m, I, X, L, SWing, bWing, STail, bTail, rho, mu, g)
-wing_polar_function = polar_constructor(Cds, Cls, Cms, alphas, Res)
-tail_polar_function = polar_constructor(Cds, Cls, Cms, alphas, Res)
-planeForces = conventional_forces_constructor(wing_polar_function, tail_polar_function, planeParameters)
-planeLowFidel = LowFidel(planeParameters, planeForces)
+
+environment = Environment(rho, mu, g)
+inertia = Inertia(m, I, cog)
+wing_polar = polar_constructor(Cds, Cls, Cms, alphas, Res)
+wing = SimpleSurface(SWing, bWing, rWing, wing_polar)
+tail_polar = polar_constructor(Cds, Cls, Cms, alphas, Res)
+tail = SimpleSurface(STail, bTail, rTail, tail_polar)
+surfaces = [wing, tail]
+rotors = [SimpleRotor(rRotor)]
+parameters = Parameters(environment, inertia, surfaces, rotors)
+forces1 = forces_conventional_low_fidel(parameters)
+forces2 = forces_low_fidel(parameters)
+plane1 = Model(parameters, forces1)
+plane2 = Model(parameters, forces2)
+
+
+x0 = [15, 2, 0, 5, 0, 0]
+u1 = [5, -5]
+
+plane1.forces(x, u1)
+
+u2 = Inputs([5], [-5])
+plane2.forces(x, u2)
+
+tSpan = [0 5]
+t = range(0, stop = tSpan[2], length = 100)
+uSpline = [Akima(t,u[1]*ones(length(t))), Akima(t,u[2]*ones(length(t)))]
+
+path = simulate(x0, uSpline, plane, tSpan)
+plot_simulation(path, uSpline)
+
 
